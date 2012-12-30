@@ -1,7 +1,7 @@
 <?php
 //////////////////////////////////////////////////
 // Josh Trotter-Wanner
-// Oct. 2012
+// Dec. 2012
 //
 // Take a get request from the Pollen Predictor then
 // send a new serial number if the received one contains a 255 value 
@@ -28,39 +28,26 @@ echo "\n";
 
 $ip_Loc_url = 'http://api.hostip.info/get_json.php?position=true&ip=';
 
+////////////////////////////////////////////////////////////////////////////////
+// Testing
+$_SERVER['REMOTE_ADDR'] = "134.36.2.74"; //dundee.ac.uk
+////////////////////////////////////////////////////////////////////////////////
 
 //Define Connection
-$con = mysql_connect("localhost","FC_mysql_user","FC_mysql_pwd");
-if (!$con)
-  {
-  die('Could not connect: ' . mysql_error());
-  }
-
-/* New
 $con = mysqli_connect("localhost","FC_mysql_user","FC_mysql_pwd","forecast");
 if (mysqli_connect_errno()) { //check connection
   printf("Could not connect: %s\n", mysqli_connect_error());
   exit();
 }
-*/
-
-$db_selected = mysql_select_db("forecast", $con);
-
-if (!$db_selected)
-  {
-  die ("Can\'t use test_db : " . mysql_error());
-  }
 
 function getLocation() {
     global $con, $ip_Loc_url;
     $ip = $_SERVER['REMOTE_ADDR'];
-    
-    //testing ip's
-    //gooder
-    //$ip = "134.36.2.74";
-    //bad
-    //$ip = "208.181.168.37";
-    
+
+    if ($ip == '::1') { //Then bad IP address
+        printf("Bad client IP address\n");
+        return -1;
+    }    
 
     // http://freegeoip.net/xml/ $_SERVER['REMOTE_ADDR']
     // http://api.hostip.info/get_html.php?ip=12.215.42.19&position=true
@@ -75,11 +62,7 @@ function getLocation() {
     $lat = $results->lat;
     $lng = $results->lng;
     // check for null valuse in the returned page
-    echo "<br>\n";
-    echo "Latitude";
-    echo $lat;
-    echo "<br>\nLongitude";
-    echo $lng;
+//    printf("Latitude=%s<br>\nLongitude=%s<br>\n",$lat,$lng);
     
     //Check for null $lat & $lng
     if ( ($lat == null) OR ($lng == null) ) {
@@ -102,13 +85,15 @@ asc limit 1;
             "GLength( linestringfromwkb( LineString( GeomFromWKB( GeoLoc ) , GeomFromWKB( Point( ".
             $lat.", ".$lng." ) ) ) ) ) asc limit 1;";
 //    echo "<br>\n";
-    $result = mysql_query($sql,$con);
+    $result = mysqli_query($con, $sql);
     if (!$result) {
-      die('Query failed: ' . mysql_error());
+      die('Query failed: ' . mysqli_error($con));
     }
 
     // return the locationID
-    return mysql_result($result,0);
+    $row = mysqli_fetch_row($result);
+    mysqli_free_result($result);
+    return $row[0];
 }
 
 function newDevice() {
@@ -131,14 +116,15 @@ function newDevice() {
 //    $sql = "INSERT INTO device (byte1, byte2, byte3, byte4, lastIPaddress) VALUES ".
 //            "('123','123','123','123','".$ip."');";
     $sql = "INSERT INTO device (ForecastQty, ForecastOneType, lastIPaddress) VALUES ".
-            "(1,1,".$ip."');";
-    $result = mysql_query($sql,$con);
+            "(1,1,'".$ip."');";
+    $result = mysqli_query($con,$sql);
     if (!$result) {
-      die('Query failed: ' . mysql_error());
+      die('Query failed: ' . mysqli_error($con));
     }
     //$result should contain the auto_increment value
     // check for bytes with 255
-    $val = $result;
+
+    $val = mysqli_insert_id($con);
     $ar = unpack("C*", pack("V", $val));
     if ($ar[1] == 255) {
       $val = $val + 1;
@@ -152,39 +138,54 @@ function newDevice() {
       $val = $val + 256*256;
     }
     $ar = unpack("C*", pack("V", $val));
-    if ($ar[4] == 255) {
+    if ($ar[4] == 255) {  // "2147417854"=(254.254.254.127) seems to be the largest serial number that can be divided into bytes
       // Then something has gone very wrong
       $val = $val + 256*256*256;
     }
-    if ( $val <> $result ) {
+    if ( $val <> mysqli_insert_id($con) ) {
         // Then this serial number won't do
         // Replace serial number $result with $val and set AUTO_INCREMENT to $val+1
 //        $sql = "";
         // delete bad deviceID for the device table ( $result )
         // 
-        $sql = "DELETE FROM device WHERE deviceID=".$result;
-        $result = mysql_query($sql,$con);
+        $sql = "DELETE FROM device WHERE deviceID=".mysqli_insert_id($con);
+        $result = mysqli_query($con,$sql);
         if (!$result) {
-          die('Query failed: ' . mysql_error());
+          die('Query failed: ' . mysqli_error($con));
         }
 
         // set AUTO_INCREMENT to the new ID ( $val )
         $sql = "ALTER TABLE device AUTO_INCREMENT=".$val;
-        $result = mysql_query($sql,$con);
+        $result = mysqli_query($con,$sql);
         if (!$result) {
-          die('Query failed: ' . mysql_error());
+          die('Query failed: ' . mysqli_error($con));
         }
         
         // create new deviceID with $val
         $sql = "INSERT INTO device (ForecastQty, ForecastOneType, lastIPaddress) VALUES ".
-                "(1,1,".$ip."');";
-        $result = mysql_query($sql,$con);
+                "(1,1,'".$ip."');";
+        $result = mysqli_query($con,$sql);
         if (!$result) {
-          die('Query failed: ' . mysql_error());
+          die('Query failed: ' . mysqli_error($con));
         }
-        $val = $result; // This should be unnessiary
+        $val = mysqli_insert_id($con); // This should be unnessiary
     } // fixed bad ID number
 
+    ////////////////////////////////////////////////////////////////////////////
+    //Set byte values (will probably remove this)
+    $ar = unpack("C*", pack("V", $val));
+    $sql = "UPDATE device SET byte1=".$ar[1].", byte2=".$ar[2].", ".
+            "byte3=".$ar[3].", byte4=".$ar[4]." WHERE ".
+            "deviceID=".$val.";";
+    $result = mysqli_query($con,$sql);
+    if (!$result) {
+      die('Query failed: ' . mysqli_error($con));
+    }
+    //
+    // End of unnessicory part
+    ////////////////////////////////////////////////////////////////////////////
+    
+    
     // return the deviceID
     return $val;
 }
@@ -209,7 +210,10 @@ if (empty($_GET["sn"])) {
     exit();
 }
 
-if ( strpos($_GET["sn"], "255") == null ) { // If contains a default value
+// If the serial number contains a default value then assign new number
+if ( strpos($_GET["sn"], "255") !== FALSE ) { // 255 being at the beginning results with a value of 0 which looks simular to FALSE
+    echo "-in setting new decive";
+    
     // then generate a new serial number and send the new one
     $locID = getLocation();
 
@@ -221,10 +225,11 @@ if ( strpos($_GET["sn"], "255") == null ) { // If contains a default value
         
     } else { 
         //setLocation($serialNumber, $locID);
+        printf("<br>\nlocID=%s, DevID=%s<br>\n",$locID,$DevID);
         $sql = "UPDATE device SET Location=".$locID." WHERE deviceID=".$DevID;
-        $result = mysql_query($sql,$con);
+        $result = mysqli_query($con,$sql);
         if (!$result) {
-          die('Query failed: ' . mysql_error());
+          die('Query failed: ' . mysqli_error($con));
         }
     }
     // Generate new serial number
@@ -234,45 +239,59 @@ if ( strpos($_GET["sn"], "255") == null ) { // If contains a default value
 } else { //Use the existing Serial Number
     //echo "Good SN<br>";
     //
-    //Check that the device exists in the database
-    //// If it is not there then add it.
-    //
-    //*******************************************************************************************
-    // Put code here
-    //
-    //
-    //
-    //
-    //*******************************************************************************************
-    //
-    //
-    //Check that the serial number has a location
-    //// Make sure that the Location does not = 0
     
     $serialNumber = $_GET["sn"];
     $SNar = str_getcsv($serialNumber,'.');
-    $val = chr($SNar[1]).chr($SNar[2]).chr($SNar[3]).chr($SNar[4]);
-    $DevID = unpack("V", $val);
+    $val = chr($SNar[0]).chr($SNar[1]).chr($SNar[2]).chr($SNar[3]);
+//    echo $SNar[0].".".$SNar[1].".".$SNar[2].".".$SNar[3]."<br>\n";
+    $DevID = unpack("V", $val); //Returns an array
+//    print_r( $DevID);
+    // Generate formated serial number (should not be nessicary if talking to an actual device)
+    $serialNumber = unpack("C*", pack("V", $DevID[1]));
+    $serialNumber = $serialNumber[1].".".$serialNumber[2].".".$serialNumber[3].".".$serialNumber[4];
+
     
     // Look up serial number's location and forecast settings
     // get $locID
-    $sql = "SELECT Location FROM device WHERE deviceID=".$DevID;
-    $result = mysql_query($sql,$con);
+    $sql = "SELECT Location FROM device WHERE deviceID=".$DevID[1];
+    $result = mysqli_query($con,$sql);
     if (!$result) {
-      die('Query failed: ' . mysql_error());
+      die('Query failed: ' . mysqli_error($con));
     }
-    $locID = $result;  ///////////////////////////////////////////////////////////// Bad
+    $row = mysqli_fetch_row($result);
+    mysqli_free_result($result);
+    $locID =  $row[0];
+    //printf("Location=%s<br>\n",$locID);
+
+    //Check that the device exists in the database
+    if ( $locID === NULL ) {
+        // Then the Device was not found in the database
+        // Add it not with default settings
+        // (it should not have a 255 value because of the earlier if statement)
+        $ar = unpack("C*", pack("V", $DevID[1]));
+        $sql = "INSERT INTO device (deviceID, byte1, byte2, byte3, byte4, ".
+               "ForecastQty, ForecastOneType, lastIPaddress) VALUES ".
+               "(".$DevID[1].",".$ar[1].",".$ar[2].",".$ar[3].",".$ar[4].",".
+                "1,1,'".$_SERVER['REMOTE_ADDR']."');";
+        printf("INSERT Query=%s<br>\n",$sql);
+        $result = mysqli_query($con,$sql);
+        if (!$result) {
+          die('Query failed: ' . mysqli_error($con));
+        }
+    }
+    //Check that the serial number has a location
     if ( $locID == 0 ) { // Then try to assign a location
       $locID = getLocation();
+//      printf("NewLocation=%s<br>\n",$locID);
       //check for error ( $loc = -1 )
       if ($locID == -1) {  //then don't return a forecast
           //leave devices location blank
       } else { 
           //setLocation($serialNumber, $locID);
-          $sql = "UPDATE device SET Location=".$locID." WHERE deviceID=".$DevID;
-          $result = mysql_query($sql,$con);
+          $sql = "UPDATE device SET Location=".$locID." WHERE deviceID=".$DevID[1];
+          $result = mysqli_query($con,$sql);
           if (!$result) {
-            die('Query failed: ' . mysql_error());
+            die('Query failed: ' . mysqli_error($con));
           }
       }    
     }
@@ -295,9 +314,9 @@ if ($locID <> -1) {
     
     for ($i=1; $i <= $Qty; $i++) {
       $sql = "SELECT Location FROM device WHERE deviceID=".$DevID;
-      $result = mysql_query($sql,$con);
+      $result = mysqli_query($con,$sql);
       if (!$result) {
-        die('Query failed: ' . mysql_error());
+        die('Query failed: ' . mysqli_error($con));
       }
       $locID = $result; 
         
@@ -309,11 +328,9 @@ if ($locID <> -1) {
 // Step Three:
 // return forecast and serial number
 // - see the example at the beginning of this file.
-
-echo "<sn>";
-echo $serialNumber;
-echo "</sn>\n";
-
+printf ("<root>\n");
+printf ("  <sn>%s</sn>\n",$serialNumber);
+printf ("</root>\n");
 
 
 // SQL database: Forecast
@@ -362,5 +379,5 @@ echo "</sn>\n";
 // 
 
 //Destructor
-mysql_close($con);
+mysqli_close($con);
 ?>
