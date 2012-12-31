@@ -17,9 +17,9 @@
 // 
 // An example response
 /*
-echo "<fcOne>Low</fcOne>\n";
-echo "<fcTwo>Medium</fcTwo>\n";
-echo "<fcThree>Very High</fcThree>\n";
+echo "<fc1>Low</fc1>\n";
+echo "<fc2>Medium</fc2>\n";
+echo "<fc3>Very High</fc3>\n";
 echo "<sn>";
 echo $_GET["sn"];
 echo "</sn>\n";
@@ -108,14 +108,14 @@ function newDevice() {
     //Leave these as default
     // Location = null
     // ForecastQty = 0;
-    // ForecastOneType = 0;
-    // ForecastTwoType = 0;
-    // ForecastThreeType = 0;
+    // Forecast1Type = 0;
+    // Forecast2Type = 0;
+    // Forecast3Type = 0;
     
     // Find an unused device ID
 //    $sql = "INSERT INTO device (byte1, byte2, byte3, byte4, lastIPaddress) VALUES ".
 //            "('123','123','123','123','".$ip."');";
-    $sql = "INSERT INTO device (ForecastQty, ForecastOneType, lastIPaddress) VALUES ".
+    $sql = "INSERT INTO device (ForecastQty, Forecast1Type, lastIPaddress) VALUES ".
             "(1,1,'".$ip."');";
     $result = mysqli_query($con,$sql);
     if (!$result) {
@@ -162,7 +162,7 @@ function newDevice() {
         }
         
         // create new deviceID with $val
-        $sql = "INSERT INTO device (ForecastQty, ForecastOneType, lastIPaddress) VALUES ".
+        $sql = "INSERT INTO device (ForecastQty, Forecast1Type, lastIPaddress) VALUES ".
                 "(1,1,'".$ip."');";
         $result = mysqli_query($con,$sql);
         if (!$result) {
@@ -245,15 +245,12 @@ if ( strpos($_GET["sn"], "255") !== FALSE ) { // 255 being at the beginning resu
     $val = chr($SNar[0]).chr($SNar[1]).chr($SNar[2]).chr($SNar[3]);
 //    echo $SNar[0].".".$SNar[1].".".$SNar[2].".".$SNar[3]."<br>\n";
     $DevID = unpack("V", $val); //Returns an array
-//    print_r( $DevID);
-    // Generate formated serial number (should not be nessicary if talking to an actual device)
-    $serialNumber = unpack("C*", pack("V", $DevID[1]));
-    $serialNumber = $serialNumber[1].".".$serialNumber[2].".".$serialNumber[3].".".$serialNumber[4];
-
+    $DevID = $DevID[1];
+    //print_r( $DevID);
     
     // Look up serial number's location and forecast settings
     // get $locID
-    $sql = "SELECT Location FROM device WHERE deviceID=".$DevID[1];
+    $sql = "SELECT Location FROM device WHERE deviceID=".$DevID;
     $result = mysqli_query($con,$sql);
     if (!$result) {
       die('Query failed: ' . mysqli_error($con));
@@ -265,12 +262,13 @@ if ( strpos($_GET["sn"], "255") !== FALSE ) { // 255 being at the beginning resu
 
     //Check that the device exists in the database
     if ( $locID === NULL ) {
+        /*
         // Then the Device was not found in the database
         // Add it not with default settings
         // (it should not have a 255 value because of the earlier if statement)
         $ar = unpack("C*", pack("V", $DevID[1]));
         $sql = "INSERT INTO device (deviceID, byte1, byte2, byte3, byte4, ".
-               "ForecastQty, ForecastOneType, lastIPaddress) VALUES ".
+               "ForecastQty, Forecast1Type, lastIPaddress) VALUES ".
                "(".$DevID[1].",".$ar[1].",".$ar[2].",".$ar[3].",".$ar[4].",".
                 "1,1,'".$_SERVER['REMOTE_ADDR']."');";
         printf("INSERT Query=%s<br>\n",$sql);
@@ -278,6 +276,10 @@ if ( strpos($_GET["sn"], "255") !== FALSE ) { // 255 being at the beginning resu
         if (!$result) {
           die('Query failed: ' . mysqli_error($con));
         }
+        * 
+        */
+        //Add as new device
+        $DevID = newDevice();
     }
     //Check that the serial number has a location
     if ( $locID == 0 ) { // Then try to assign a location
@@ -288,13 +290,16 @@ if ( strpos($_GET["sn"], "255") !== FALSE ) { // 255 being at the beginning resu
           //leave devices location blank
       } else { 
           //setLocation($serialNumber, $locID);
-          $sql = "UPDATE device SET Location=".$locID." WHERE deviceID=".$DevID[1];
+          $sql = "UPDATE device SET Location=".$locID." WHERE deviceID=".$DevID;
           $result = mysqli_query($con,$sql);
           if (!$result) {
             die('Query failed: ' . mysqli_error($con));
           }
       }    
     }
+    // Generate formated serial number (should not be nessicary if talking to an actual device)
+    $serialNumber = unpack("C*", pack("V", $DevID));
+    $serialNumber = $serialNumber[1].".".$serialNumber[2].".".$serialNumber[3].".".$serialNumber[4];
 }
 
 
@@ -312,14 +317,88 @@ if ( strpos($_GET["sn"], "255") !== FALSE ) { // 255 being at the beginning resu
 if ($locID <> -1) {
     // Get forecast Qty and Types
     
+    $sql = "SELECT ForecastQty FROM device WHERE deviceID=".$DevID;
+    $result = mysqli_query($con,$sql);
+    if (!$result) {
+      die('Query failed: ' . mysqli_error($con));
+    }
+    $row = mysqli_fetch_row($result);
+    mysqli_free_result($result);
+    $Qty =  $row[0];
+
+    // Givens DevID, locID, ForecastType
+    // Results Source php File, Location Value
+    // 
+    // DevID -> locID & ForecastType
+    // locID & ForecastType -> sources for this location and the required type (phpFile, LocationField)
+    // locID & LocationField -> Location Value
+    
+    // For forecast using deviceID only (I am stuck doing this with two queries.
+    // 
+    //SELECT source.LocationField FROM device INNER JOIN location ON device.Location=location.LocationID INNER JOIN relation ON location.LocationID=relation.Location INNER JOIN source ON relation.Source=source.SourceID WHERE device.deviceID=8 AND device.Forecast1Type=source.ForecastType ORDER BY Rank ASC;
+    // -> Name1
+    //SELECT source.phpFile, location.Name1 FROM device INNER JOIN location ON device.Location=location.LocationID INNER JOIN relation ON location.LocationID=relation.Location INNER JOIN source ON relation.Source=source.SourceID WHERE device.deviceID=8 AND device.Forecast1Type=source.ForecastType ORDER BY Rank ASC;
+    
+    ////////////////////////////////
+    //The above sql join
+    //SELECT * FROM device INNER JOIN location ON device.Location=location.LocationID INNER JOIN relation ON location.LocationID=relation.Location INNER JOIN source ON relation.Source=source.SourceID WHERE device.deviceID=8 AND device.Forecast1Type=source.ForecastType ORDER BY Rank ASC;
+    // SELECT * 
+    //   FROM device 
+    //     INNER JOIN location
+    //       ON device.Location=location.LocationID
+    //     INNER JOIN relation
+    //       ON location.LocationID=relation.Location 
+    //     INNER JOIN source
+    //       ON relation.Source=source.SourceID
+    //   WHERE device.deviceID=8
+    //     AND device.Forecast1Type=source.ForecastType
+    //   ORDER BY Rank ASC;
+    
+    // Grab the source (php file name and location field value) that is for the location and the forecast type
     for ($i=1; $i <= $Qty; $i++) {
-      $sql = "SELECT Location FROM device WHERE deviceID=".$DevID;
+      $sql = "SELECT source.LocationField ".
+                "FROM device ".
+                  "INNER JOIN location ".
+                    "ON device.Location=location.LocationID ".
+                  "INNER JOIN relation ".
+                    "ON location.LocationID=relation.Location ".
+                  "INNER JOIN source ".
+                    "ON relation.Source=source.SourceID ".
+                "WHERE device.deviceID=".$DevID.
+                  " AND device.Forecast".$i."Type=source.ForecastType ".
+                "ORDER BY Rank ASC;";
       $result = mysqli_query($con,$sql);
       if (!$result) {
         die('Query failed: ' . mysqli_error($con));
       }
-      $locID = $result; 
-        
+      $row = mysqli_fetch_row($result); //no rows if no source found
+      //mysqli_free_result($result);
+
+      $sql = "SELECT source.phpFile, location.".$row[0].
+               " FROM device ".
+                  "INNER JOIN location ".
+                    "ON device.Location=location.LocationID ".
+                  "INNER JOIN relation ".
+                    "ON location.LocationID=relation.Location ".
+                  "INNER JOIN source ".
+                    "ON relation.Source=source.SourceID ".
+                "WHERE device.deviceID=".$DevID.
+                 " AND device.Forecast".$i."Type=source.ForecastType ".
+                "ORDER BY Rank ASC;";
+      $result = mysqli_query($con,$sql);
+      if (!$result) {
+        die('Query failed: ' . mysqli_error($con));
+      }
+      $row = mysqli_fetch_row($result); //no rows if no source found
+      mysqli_free_result($result);
+      
+      //$row[0] is phpFile name
+      //$row[1] is location string
+      
+      // Give the location string to the phpFile and store the forecast
+      include "sources\\".$row[0].".php";
+      $forecast[$i]=$row[0]($row[1]);
+      
     }
     
 }
@@ -328,8 +407,14 @@ if ($locID <> -1) {
 // Step Three:
 // return forecast and serial number
 // - see the example at the beginning of this file.
+// This should be done in one quick transmition so the device can receive one data burst.
 printf ("<root>\n");
 printf ("  <sn>%s</sn>\n",$serialNumber);
+if ($locID <> -1) {
+  for ($i=1; $i <= $Qty; $i++) {
+      printf("  <fc%s>%s</fc%s>\n",$i,$forecast[$i],$i);
+  }
+}
 printf ("</root>\n");
 
 
@@ -366,6 +451,7 @@ printf ("</root>\n");
 // 
 // 
 // Table: Device
+// uint: DeviceID
 // TinyInt: byte1
 // TinyInt: byte2
 // TinyInt: byte3
@@ -373,9 +459,9 @@ printf ("</root>\n");
 // VARCHAR(32): lastIPaddress  //used to identify the device when they connect with a browser
 // uint: Location
 // TinyInt: ForecastQty
-// uint: ForecastOneType
-// uint: ForecastTwoType
-// uint: ForecastThreeType
+// uint: Forecast1Type
+// uint: Forecast2Type
+// uint: Forecast3Type
 // 
 
 //Destructor
