@@ -30,7 +30,7 @@ $ip_Loc_url = 'http://api.hostip.info/get_json.php?position=true&ip=';
 
 ////////////////////////////////////////////////////////////////////////////////
 // Testing
-$_SERVER['REMOTE_ADDR'] = "134.36.2.74"; //dundee.ac.uk
+//$_SERVER['REMOTE_ADDR'] = "134.36.2.74"; //dundee.ac.uk
 ////////////////////////////////////////////////////////////////////////////////
 
 //Define Connection
@@ -84,7 +84,6 @@ asc limit 1;
             "FROM location order by ".
             "GLength( linestringfromwkb( LineString( GeomFromWKB( GeoLoc ) , GeomFromWKB( Point( ".
             $lat.", ".$lng." ) ) ) ) ) asc limit 1;";
-//    echo "<br>\n";
     $result = mysqli_query($con, $sql);
     if (!$result) {
       die('Query failed: ' . mysqli_error($con));
@@ -206,13 +205,12 @@ function newDevice() {
 // - if the serial number is in the database then use it's assoated location
 
 if (empty($_GET["sn"])) {
-    echo "Dude! I don't know you.";
+    printf("Dude! I don't know you.");
     exit();
 }
 
 // If the serial number contains a default value then assign new number
 if ( strpos($_GET["sn"], "255") !== FALSE ) { // 255 being at the beginning results with a value of 0 which looks simular to FALSE
-    echo "-in setting new decive";
     
     // then generate a new serial number and send the new one
     $locID = getLocation();
@@ -225,7 +223,7 @@ if ( strpos($_GET["sn"], "255") !== FALSE ) { // 255 being at the beginning resu
         
     } else { 
         //setLocation($serialNumber, $locID);
-        printf("<br>\nlocID=%s, DevID=%s<br>\n",$locID,$DevID);
+//        printf("<br>\nlocID=%s, DevID=%s<br>\n",$locID,$DevID);
         $sql = "UPDATE device SET Location=".$locID." WHERE deviceID=".$DevID;
         $result = mysqli_query($con,$sql);
         if (!$result) {
