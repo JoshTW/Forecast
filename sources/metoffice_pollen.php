@@ -8,10 +8,97 @@
 
 function metoffice_pollen($locationString) {
     
-    //Testing
-    $forecast = "Low";
-    // $forecast = one of these "Low", "Medium", "High", and "Very High"
-    return $forecast;
+    
+    $source= "http://www.metoffice.gov.uk/public/data/PWSCache/PollenForecast/Latest";
+    // Returns "<title>404 Not Found - Met Office</title>"
+    $curl = curl_init($source);
+    if ( curl_setopt($curl, CURLOPT_RETURNTRANSFER, TRUE) ) {
+        $string = curl_exec( $curl );
+    }
+      
+     
+
+/*
+    $results = json_decode($string);
+    $lat = $results->lat;
+    $lng = $results->lng;
+    curl_close($curl);
+*/
+    //xml tags
+    // "issue at", "region name", "day number"="1" "level"="Low"
+    
+/*    
+    var $parser;
+    parser = xml_parser_create();
+    parser_set_option($parser,XML_OPTION_CASE_FOLDING,0);
+    parser_set_option($parser,XML_OPTION_SKIP_WHITE,1);
+    parse_into_struct($parser, $data, $vals, $index);
+    parser_free($parser); 
+ */
+    /*
+    $string='<?xml version="1.0"?><datas><cars><car><manufacture country="japan">Honda</manufacture><type>Honda Jazz</type></car><car><manufacture country="korea">Nissan</manufacture><type>Nissan Livina</type></car></cars></datas>';
+*/
+    $xml = simplexml_load_string("$string");
+    
+    //echo $xml->getName() . "<br />";
+    
+    //print_r($xml);
+    //print_r ( (array) $xml );
+    
+    foreach($xml->children() as $child)  // contains "issue", "report"
+      {
+        if ($child->getName() == 'issue' ) {
+            foreach($child->attributes() as $a => $b) {
+                if ( $a == 'at' ) {
+//                    echo $b; // When the forcast was issued
+//                    echo "<br>";
+                }
+            }
+        }
+        if ($child->getName() == 'report' ) {
+            //echo "at report<br>";
+            foreach($child->children() as $report) {
+                //echo $child->getName() . "<br />";
+                //print_r($report);
+//                echo "<br>";
+
+//                echo $report->getName() . "<br />";
+                foreach( $report->attributes() as $a => $b){  /////////////  Need a better / faster array handling code
+                    //echo $a,'="',$b,"\"<br>\n";
+                    if ( $a == 'name' ) {
+                        //Check against $locationString
+//                        echo $b . "<br />";
+                        if ($b == $locationString ) {
+                            foreach($report->children() as $region) {
+                                $lastNumber=0;
+                                foreach( $region->attributes() as $a => $b ) {
+                                    if ( $a == 'number' ) { // if day number 1 
+                                        $lastNumber = $b;
+                                    } elseif ( $a == level && $lastNumber == 1 ) {
+//                                        echo "The forcast is " . $b . "<br>";
+                                        return $b;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+//                echo 
+//                echo $data->getName() . "<br />";
+//                echo $data->report[1];
+//                echo $data->region[1];
+                //echo $data->region['name'];  //Could have used 'id' instead
+                //echo $data->region['id'];
+            }
+        }
+      }   
+    
+    
+//    echo "inside the source<br>";
+    
+
+      // return = one of these "Low", "Medium", "High", and "Very High"
 }
 
 
