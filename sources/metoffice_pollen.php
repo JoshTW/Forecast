@@ -1,7 +1,7 @@
 <?php
 //// ///////////////////////////////////////////////////////////////////////
 // Josh Trotter-Wanner
-// Nov. 1, 2012
+// Nov. 1, 2012 to May 20, 2013
 // 
 // Return the pollen forecast ("Low", "Medium", "High", and "Very High") 
 // for the location string provided
@@ -15,54 +15,24 @@ function metoffice_pollen($locationString) {
     if ( curl_setopt($curl, CURLOPT_RETURNTRANSFER, TRUE) ) {
         $string = curl_exec( $curl );
     }
-      
-     
-
-/*
-    $results = json_decode($string);
-    $lat = $results->lat;
-    $lng = $results->lng;
     curl_close($curl);
-*/
+
     //xml tags
     // "issue at", "region name", "day number"="1" "level"="Low"
     
-/*    
-    var $parser;
-    parser = xml_parser_create();
-    parser_set_option($parser,XML_OPTION_CASE_FOLDING,0);
-    parser_set_option($parser,XML_OPTION_SKIP_WHITE,1);
-    parse_into_struct($parser, $data, $vals, $index);
-    parser_free($parser); 
- */
-    /*
-    $string='<?xml version="1.0"?><datas><cars><car><manufacture country="japan">Honda</manufacture><type>Honda Jazz</type></car><car><manufacture country="korea">Nissan</manufacture><type>Nissan Livina</type></car></cars></datas>';
-*/
     $xml = simplexml_load_string("$string");
-    
-    //echo $xml->getName() . "<br />";
-    
-    //print_r($xml);
-    //print_r ( (array) $xml );
     
     foreach($xml->children() as $child)  // contains "issue", "report"
       {
         if ($child->getName() == 'issue' ) {
             foreach($child->attributes() as $a => $b) {
                 if ( $a == 'at' ) {
-//                    echo $b; // When the forcast was issued
-//                    echo "<br>";
+//                    echo $b . "<br>"; // When the forcast was issued
                 }
             }
         }
         if ($child->getName() == 'report' ) {
-            //echo "at report<br>";
             foreach($child->children() as $report) {
-                //echo $child->getName() . "<br />";
-                //print_r($report);
-//                echo "<br>";
-
-//                echo $report->getName() . "<br />";
                 foreach( $report->attributes() as $a => $b){  /////////////  Need a better / faster array handling code
                     //echo $a,'="',$b,"\"<br>\n";
                     if ( $a == 'name' ) {
@@ -83,21 +53,9 @@ function metoffice_pollen($locationString) {
                         }
                     }
                 }
-                
-//                echo 
-//                echo $data->getName() . "<br />";
-//                echo $data->report[1];
-//                echo $data->region[1];
-                //echo $data->region['name'];  //Could have used 'id' instead
-                //echo $data->region['id'];
             }
         }
       }   
-    
-    
-//    echo "inside the source<br>";
-    
-
       // return = one of these "Low", "Medium", "High", and "Very High"
 }
 
