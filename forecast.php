@@ -26,6 +26,11 @@ echo "</sn>\n";
 echo "\n";
 */
 
+// Stored the database credentials seperatly
+// $db_host, $db_user, $db_password, $db_name
+include 'database.php';
+
+    // http://freegeoip.net/xml/ $_SERVER['REMOTE_ADDR']
 $ip_Loc_url = 'http://api.hostip.info/get_json.php?position=true&ip=';
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -34,7 +39,7 @@ $ip_Loc_url = 'http://api.hostip.info/get_json.php?position=true&ip=';
 ////////////////////////////////////////////////////////////////////////////////
 
 //Define Connection
-$con = mysqli_connect("localhost","FC_mysql_user","FC_mysql_pwd","forecast");
+$con = mysqli_connect($db_host,$db_user,$db_password,$db_name);
 if (mysqli_connect_errno()) { //check connection
   printf("Could not connect: %s\n", mysqli_connect_error());
   exit();
@@ -49,9 +54,6 @@ function getLocation() {
         return -1;
     }    
 
-    // http://freegeoip.net/xml/ $_SERVER['REMOTE_ADDR']
-    // http://api.hostip.info/get_html.php?ip=12.215.42.19&position=true
-    //http://api.hostip.info/get_json.php
     $curl = curl_init($ip_Loc_url.$ip);
     if ( curl_setopt($curl, CURLOPT_RETURNTRANSFER, TRUE) ) {
         $string = curl_exec( $curl );
@@ -61,6 +63,7 @@ function getLocation() {
     $results = json_decode($string);
     $lat = $results->lat;
     $lng = $results->lng;
+    curl_close($curl);
     // check for null valuse in the returned page
 //    printf("Latitude=%s<br>\nLongitude=%s<br>\n",$lat,$lng);
     
@@ -394,7 +397,7 @@ if ($locID <> -1) {
       //$row[1] is location string
       
       // Give the location string to the phpFile and store the forecast
-      include "sources\\".$row[0].".php";
+      require('./sources/'.$row[0].'.php');
       $forecast[$i]=$row[0]($row[1]);
       
     }
